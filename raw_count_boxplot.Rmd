@@ -1,0 +1,61 @@
+---
+title: "raw nanostring expression counts"
+output: html_document
+---
+
+```{r, fig.width=20}
+## Boxplot in Figure 7
+
+library(readr)
+expression_data <- read_delim("C:/Users/elif/Desktop/nsolver_normalized data/Stage2, LMU, normalized data, Nanostring, whole cohort, 18.03.2022.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+expression_data<-expression_data[-1,-c(2:19)]
+probe<-expression_data$`Probe Name`
+expression_data<-expression_data[,-1]
+row.names(expression_data)<-probe
+expression_data<-t(expression_data)
+expression_data<-expression_data[-c(97,98,146,208,209),]
+dim(expression_data)
+dim(data)
+data_2<-cbind(data, expression_data)
+
+
+expression_data<-as.data.frame(expression_data)
+expression_data<-sapply(expression_data, as.numeric)
+
+
+genes<-expression_data[,1:61]
+genes<-as.data.frame(genes)
+
+
+expression_data<-as.data.frame(expression_data)
+
+
+
+```
+```{r,fig.width=32, fig.height=25}
+
+row.names(flag)<-names[1:61]
+
+flag<-as.data.frame(flag)
+flag<-t(flag)
+ggplot(flag, aes(y=log2(flag)))+geom_boxplot()
+
+
+
+par(mar=c(20,15,8,5))
+boxplot(log2(flag),yaxt="n",xaxt="n",boxcol="black",outpch=10,outcol="black",outcex=2,medlwd=8,
+       frame = FALSE, whisklty = 4, whisklwd = 4, staplelty = 1, boxlwd = 2,lwd.ticks=5, col=p, box.col="black")
+abline(h=3.321928, col="red",lwd=18,lty=2)
+axis(2,cex.axis=3.5,las=1, at=c(0,3,6,9,12,15))
+axis(1, font=2, cex.axis=2.5, las=2
+     , labels = colnames(flag), at=c(1:61))
+mtext("Genes", 1, line = 17, cex = 4, font=2)
+mtext("log2 normalized counts", 2, line = 8, cex = 4, font=2)
+title( main="Normalized log2 counts of 61 genes",cex.main=5, line=5)
+
+
+
+```
+
