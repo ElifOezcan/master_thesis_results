@@ -1,0 +1,493 @@
+---
+title: "combi_score vs estimated risk"
+output: html_document
+---
+
+
+```{r}
+
+library(readxl)
+combi_score <- read_excel("C:/Users/elif/Desktop/combination calculations/All combis 01scores.xlsx")
+
+
+
+combi_names<-combi_score$combi
+combi_score<-combi_score[,-c(1:3)]
+row.names(combi_score)<-combi_names
+combi_score<-t(combi_score)
+
+##Lowest pvalue which is combi15_14
+
+combi_score<-as.data.frame(combi_score)
+patient_name<-rownames(combi_score)
+combi15<-combi_score[,92]
+combi15<-as.data.frame(combi15)
+combi15
+row.names(combi15)<-row.names(combi_names)
+combi15<-cbind(combi15, combi_score$RFS,combi_score$RFS01)
+names(combi15)[2]<-paste("RFS")
+names(combi15)[3]<-paste("RFS01")
+names(combi15)[1]<-paste("combi15_score")
+rownames(combi15)<-patient_name
+model15<-glm(RFS01~combi15_score, combi15, family = "binomial")
+predicted15<-predict(object = model15,
+        newdata = data.frame(RFS=13,RFS01=1 ,combi15_score = combi15$combi15_score),type = "response", se.fit = TRUE)
+predicted15<-data.frame(predicted15)
+predicted15
+
+w15<-cbind(predicted15$fit, combi15$combi15_score)
+w15<-as.data.frame(w15)
+
+
+
+library(tibble)
+
+
+## compute a 95% interval the right way
+
+fam<-family(model15)
+fam
+str(fam)
+ilink <- fam$linkinv
+ilink
+poisson()$linkinv
+
+# grad the inverse link function
+ilink <- family(model15)$linkinv
+## add fit and se.fit on the **link** scale
+names(w15)[2]<-paste("combi15_score")
+
+w15 <- bind_cols(w15, setNames(as_tibble(predict(model15, w15, se.fit = TRUE)[1:2]),c('fit_link','se_link')))
+
+## create the interval and backtransform
+w15 <- mutate(w15,
+                fit_resp  = ilink(fit_link),
+                right_upr = ilink(fit_link + (2 * se_link)),
+                right_lwr = ilink(fit_link - (2 * se_link)))
+
+w15
+
+
+w15<-as.data.frame(w15)
+ggplot(w15, aes(x=(w15$combi15_score), y=w15$V1*100))+geom_line(size=2)+xlab("Recurrence Score")+geom_ribbon(data = w15, aes(ymin = (w15$right_lwr)*100, ymax = (w15$right_upr)*100),alpha = 0.3)+annotate(geom="text", x=5, y=30, label="p.value=3.60e-11",color="black", fontface="bold")+geom_rug( sides = "b", col="black",alpha=0.05, size=2)+ylab("Estimated Risk of Recurrence at 13 Years (%)")+theme_classic()+scale_x_discrete(limits=c(3,4,5,6,7,8,9,10,11,12))
+
+##pvalue
+
+summary(model15)
+
+
+## Dashed confidence intervals
+
+ggplot(w15, aes(x=(w15$combi15_score), y=w15$V1*100))+geom_line(size=2)+xlab("Recurrence Score")+annotate(geom="text", x=5, y=30, label="p.value=3.60e-11",color="black", fontface="bold")+geom_rug( sides = "b", col="black",alpha=0.05, size=2)+ylab("Estimated Risk of Recurrence at 13 Years (%)")+geom_line(aes(y = w15$right_lwr*100), color = "black", linetype = "dashed", size=2)+geom_line(aes(y = w15$right_upr*100), color = "black", linetype = "dashed",size=2)  
+
+
+```
+```{r}
+library(coxphw)
+library(ggplot2)
+library(pec)
+sfit <- coxph(Surv(RFS,RFS01)~combi15_score,data=combi15,x=TRUE,y=TRUE)
+two_year_15<-predictSurvProb(sfit,newdata=data.frame(RFS01=1 ,combi15_score =combi15$combi15_score),times=c(2,5,10))
+
+confint(sfit)
+two_year
+two_year_15<-cbind(combi15, two_year_15)
+two_year_15<-as.data.frame(two_year_15)
+x<-1-two_year_15$`1`
+ggplot(two_year, aes(x=(two_year_15$combi15_score), y=(x)*100))+geom_line(size=2)+
+theme_bw()+scale_x_discrete(limits=c(3,4,5,6,7,8,9,10,11,12))+geom_rug( sides = "b", col="black",alpha=0.08, size=2,face="bold")+xlab("Recurrence Score")+ylab("Estimated Risk of Relapse in 10 years (%)")+theme(axis.title = element_text(face="bold"), axis.text.x = element_text(face="bold",size=12,color="black"),
+axis.title.x = element_text(margin = margin(t=20)), axis.title.y = element_text(margin = margin(r=20)),axis.text.y = element_text(size=12,color="black"))
+
+pec:::predictSurvProb.coxph(sfit, newdata=data.frame(RFS01=1 ,combi15_score =combi15$combi15_score), times=2)
+
+predict(sfit,newdata=data.frame(RFS01=1 ,combi15_score =combi15$combi15_score),times=c(2,5,interval = "predict", level = 0.99))
+
+
+
+
+
+
+
+
+
+
+
+fit1 <- coxphw(Surv(RFS, RFS01) ~ combi15_score, data =combi15, template = "PH")
+summary(fit1)
+
+
+fit1est <- predict(fit1, type = "slice.time", x = "mths", z = "radiation", newx = c(1,8,14),exp = TRUE, verbose = TRUE, pval = TRUE)
+
+plot(fit1est)
+
+library(rms)
+coxmodel <- cph(Surv(RFS,RFS01)~combi15_score, data =combi15,surv=TRUE)
+
+# Extract predicted survival probabilities 
+# at selected time-points:
+ttt <- quantile(d$time)
+ttt
+# for selected predictor values:
+ndat <- data.frame(recurrence_score=c(0,1,0,1))
+# as follows
+predictSurvProb(coxmodel,newdata=ndat,times=c(2,4,7))
+
+```
+```{r}
+sfit <- coxph(Surv(RFS,RFS01)~combi18_score,data=combi18,x=TRUE,y=TRUE)
+two_year_18<-predictSurvProb(sfit,newdata=data.frame(RFS01=1 ,combi18_score =combi18$combi18_score),times=c(2,5,10))
+
+confint(sfit)
+two_year
+two_year_18<-cbind(combi18, two_year_18)
+two_year_18<-as.data.frame(two_year_18)
+x<-1-two_year_18$`1`
+ggplot(two_year_18, aes(x=(two_year_18$combi18_score), y=(x)*100))+geom_line(size=2)+
+theme_bw()+scale_x_discrete(limits=c(3,4,5,6,7,8,9,10,11,12,13,14))+geom_rug( sides = "b", col="black",alpha=0.08, size=3, face="bold")+xlab("Recurrence Score")+ylab("Estimated Risk of Relapse in 5 years (%)")+theme(axis.title = element_text(face="bold"), axis.text.x = element_text(face="bold",size=12,color="black"),
+axis.title.x = element_text(margin = margin(t=20)), axis.title.y = element_text(margin = margin(r=20)),axis.text.y = element_text(size=12,color="black"))
+
+```
+
+
+```{r}
+##Largest AUC value which is combi18_1
+
+combi18<-combi_score[,3]
+combi18<-as.data.frame(combi18)
+combi18
+rownames(combi18)<-patient_name
+
+combi18<-cbind(combi18, combi_score$RFS,combi_score$RFS01)
+names(combi18)[2]<-paste("RFS")
+names(combi18)[3]<-paste("RFS01")
+names(combi18)[1]<-paste("combi18_score")
+
+
+model18<-glm(RFS01~combi18_score, combi18, family = "binomial")
+predicted18<-predict(object = model18,
+        newdata = data.frame(RFS=13,RFS01=1 ,combi18_score = combi18$combi18_score),type = "response", se.fit = TRUE)
+predicted18<-data.frame(predicted18)
+predicted18
+
+w18<-cbind(predicted18$fit, combi18$combi18_score)
+w18<-as.data.frame(w18)
+
+
+
+## compute a 95% interval the right way
+
+fam<-family(model18)
+fam
+str(fam)
+ilink <- fam$linkinv
+ilink
+poisson()$linkinv
+
+# grad the inverse link function
+ilink <- family(model18)$linkinv
+## add fit and se.fit on the **link** scale
+names(w18)[2]<-paste("combi18_score")
+library(dplyr)
+w18 <- bind_cols(w18, setNames(as_tibble(predict(model18, w18, se.fit = TRUE)[1:2]),c('fit_link','se_link')))
+
+## create the interval and backtransform
+w18 <- mutate(w18,
+                fit_resp  = ilink(fit_link),
+                right_upr = ilink(fit_link + (2 * se_link)),
+                right_lwr = ilink(fit_link - (2 * se_link)))
+
+w18
+
+
+w18<-as.data.frame(w18)
+ggplot(w18, aes(x=(w18$combi18_score), y=w18$V1*100), )+geom_line(size=2)+xlab("Recurrence Score")+geom_ribbon(data = w18, aes(ymin = (w18$right_lwr)*100, ymax = (w18$right_upr)*100),alpha = 0.3)+annotate(geom="text", x=5, y=30, label="p.value=4.31e-11",color="black", fontface="bold")+geom_rug( sides = "b", col="black",alpha=0.05, size=2)+ylab("Estimated Risk of Recurrence at 13 Years (%)")+theme_classic()+scale_x_discrete(limits=c(3,4,5,6,7,8,9,10,11,12,13,14,15))
+
+##devalue
+summary(model18)
+summary(model15)
+
+##Dashed confidence intervals
+
+ggplot(w18, aes(x=(w18$combi18_score), y=w18$V1*100))+geom_line(size=2)+xlab("Recurrence Score")+annotate(geom="text", x=5, y=30, label="p.value=4.31e-11",color="black", fontface="bold")+geom_rug( sides = "b", col="black",alpha=0.05, size=2)+ylab("Estimated Risk of Recurrence at 13 Years (%)")+geom_line(aes(y = w18$right_lwr*100), color = "black", linetype = "dashed", size=2)+geom_line(aes(y = w18$right_upr*100), color = "black", linetype = "dashed",size=2)
+
+
+```
+
+
+
+```{r,fig.height=5, fig.width=5}
+
+##KM graph for combi15_14
+
+genes <- "combi15_score"
+
+
+cutoff <- surv_cutpoint(combi15_os, time = "OS", event = "OS01", variables = genes, minprop = 0.1, progressbar = TRUE)
+
+surv_cat <- surv_categorize(cutoff)
+
+formulafinal <- list(paste("Surv(OS, OS01) ~ ", genes))
+fit <- surv_fit(eval(parse(text=formulafinal)), data = surv_cat)
+pvalue <- surv_pvalue(fit)
+#calculate HR
+univ_formulas <- sapply(genes, function(x) as.formula(paste('Surv(OS, OS01)~', x)))
+univ_models <- lapply(univ_formulas, function(x){coxph(x, data = surv_cat)})
+# Extract data 
+univ_results <- lapply(univ_models,
+                       function(x){ 
+                         x <- summary(x)
+                         p.value<-signif(x$wald["pvalue"], digits=4)
+                         wald.test<-signif(x$wald["test"], digits=4)
+                         beta<-signif(x$coef[1], digits=4);#coeficient beta
+                         HR <-signif(x$coef[2], digits=4);#exp(beta)
+                         HR.confint.lower <- signif(x$conf.int[,"lower .95"], 4)
+                         HR.confint.upper <- signif(x$conf.int[,"upper .95"],4)
+                         'HR <- paste0(HR, " (", 
+                                      HR.confint.lower, "-", HR.confint.upper, ")")'
+                         res<-c(beta, 1/HR, 1/HR.confint.upper, 1/HR.confint.lower, wald.test, p.value)
+                         names(res)<-c("beta", "HR","95% CI lower", "95% CI upper", "wald.test", 
+                                       "p.value")
+                         return(res)
+                         #return(exp(cbind(coef(x),confint(x))))
+                       })
+res <- t(as.data.frame(univ_results, check.names = FALSE))
+
+
+
+pvalonly <- pvalue$pval
+pvaldigit <- formatC(pvalonly, digits=3)
+res_x <- as.data.frame(res)
+HR <- res_x$HR
+HRdigit<-formatC(HR, digits = 3)
+
+#ggsurvplot(fit=fit, pval=TRUE)
+
+ggsurv <- ggsurvplot(fit = fit, pval = FALSE, 
+           risk.table = FALSE,
+           palette = c("brown2", "blue3"),
+           legend = "top", 
+           #legend = c(0.8, 0.5),
+           legend.title = "",
+           legend.labs = c("score high", "score low"), # Change legend labels
+           font.legend = 15,
+           xlab = "Time (years)",   # customize X axis label
+           ylab = "Overall Survival (%)",   # customize X axis label
+           #break.time.by = 20,     # break X axis in time intervals by 20.
+           font.main = 10,
+           font.x =  14,
+           font.y = 14,
+           font.tickslab = 13,
+           tables.height = 0.25,
+           title="",
+           conf.int = TRUE,
+           conf.int.alpha = 0.2
+           )
+
+ggsurv$plot<- ggsurv$plot+theme(axis.title.y = element_text(margin = margin(r = 20), face = "bold"), plot.title = element_text(hjust = 0.5,size = 18  ,face = "bold"),axis.title.x=element_text(face="bold", margin = margin(t=20)))
+
+
+ggsurv$plot <- ggsurv$plot +
+  ggplot2::annotate(
+    "text",
+    x= 0, y=0,
+    vjust = "inward", hjust = "inward",
+    label = paste("HR = ", HRdigit, "\np =", pvaldigit),
+    size = 5,
+    fontface="bold"
+  )
+
+
+
+ggsurv
+
+
+
+```
+```{r}
+combi15
+cohort$patient<-row.names(cohort)
+cohort
+dim(combi15)
+dim(cohort)
+
+combi15_os<-inner_join(combi15,cohort, by="patient")
+combi15_os<-combi15_os[,c(1,2,3,5,6)]
+colnames(combi15_os)[1]<-paste("combi15_score")
+colnames(combi15_os)[2]<-paste("RFS")
+colnames(combi15_os)[3]<-paste("RFS01")
+
+combi18$patient<-patient_name
+combi18_os<-inner_join(combi18,cartridge, by="patient")
+combi18_os<-combi18_os[,c(1,8,9)]
+colnames(combi18_os)[1]<-paste("combi18_score")
+colnames(combi18_os)[2]<-paste("OS")
+colnames(combi18_os)[3]<-paste("OS01")
+
+combi15$patient<-rownames(combi15)
+cartridge<-cartridge[-(132),]
+colnames(cartridge)[2]<-paste("patient")
+combi15_os<-inner_join(combi15,cartridge, by="patient")
+combi15_os<-combi15_os[,c(1,8,9)]
+colnames(combi15_os)[1]<-paste("combi15_score")
+colnames(combi15_os)[2]<-paste("OS")
+colnames(combi15_os)[3]<-paste("OS01")
+
+```
+
+
+```{r,,fig.height=5, fig.width=5}
+
+##KM graph for combi18_1
+
+genes <- "combi18_score"
+
+
+cutoff <- surv_cutpoint(combi18, time = "RFS", event = "RFS01", variables = genes, minprop = 0.1, progressbar = TRUE)
+
+surv_cat <- surv_categorize(cutoff)
+
+formulafinal <- list(paste("Surv(RFS, RFS01) ~ ", genes))
+fit <- surv_fit(eval(parse(text=formulafinal)), data = surv_cat)
+pvalue <- surv_pvalue(fit)
+#calculate HR
+univ_formulas <- sapply(genes, function(x) as.formula(paste('Surv(RFS, RFS01)~', x)))
+univ_models <- lapply(univ_formulas, function(x){coxph(x, data = surv_cat)})
+# Extract data 
+univ_results <- lapply(univ_models,
+                       function(x){ 
+                         x <- summary(x)
+                         p.value<-signif(x$wald["pvalue"], digits=4)
+                         wald.test<-signif(x$wald["test"], digits=4)
+                         beta<-signif(x$coef[1], digits=4);#coeficient beta
+                         HR <-signif(x$coef[2], digits=4);#exp(beta)
+                         HR.confint.lower <- signif(x$conf.int[,"lower .95"], 4)
+                         HR.confint.upper <- signif(x$conf.int[,"upper .95"],4)
+                         'HR <- paste0(HR, " (", 
+                                      HR.confint.lower, "-", HR.confint.upper, ")")'
+                         res<-c(beta, 1/HR, 1/HR.confint.upper, 1/HR.confint.lower, wald.test, p.value)
+                         names(res)<-c("beta", "HR","95% CI lower", "95% CI upper", "wald.test", 
+                                       "p.value")
+                         return(res)
+                         #return(exp(cbind(coef(x),confint(x))))
+                       })
+res <- t(as.data.frame(univ_results, check.names = FALSE))
+
+
+
+pvalonly <- pvalue$pval
+pvaldigit <- formatC(pvalonly, digits=3)
+res_x <- as.data.frame(res)
+HR <- res_x$HR
+HRdigit<-formatC(HR, digits = 3)
+
+#ggsurvplot(fit=fit, pval=TRUE)
+
+ggsurv <- ggsurvplot(fit = fit, pval = FALSE, 
+           risk.table = FALSE,
+           palette = c("brown2", "blue3"),
+           legend = "top", 
+           #legend = c(0.8, 0.5),
+           legend.title = "",
+           legend.labs = c("score high", "score low"), # Change legend labels
+           font.legend = 15,
+           xlab = "Time (years)",   # customize X axis label
+           ylab = "Relapse Free Survival (%)",   # customize X axis label
+           #break.time.by = 20,     # break X axis in time intervals by 20.
+           font.main = 10,
+           font.x =  14,
+           font.y = 14,
+           font.tickslab = 13,
+           tables.height = 0.25,
+           title="",
+           conf.int = TRUE,
+           conf.int.alpha=0.2
+           )
+
+ggsurv$plot <- ggsurv$plot + theme(axis.title.y = element_text(margin = margin(r = 20), face = "bold"), plot.title = element_text(hjust = 0.5,size = 18  ,face = "bold")) #decrease the distance between y-axis title and the axis
+
+ggsurv$plot <- ggsurv$plot +
+  ggplot2::annotate(
+    "text",
+    x= 0, y=0,
+    vjust = "inward", hjust = "inward",
+    label = paste("HR = ", HRdigit, "\np =", pvaldigit),
+    size = 5,
+    fontface="bold"
+  )
+
+
+
+ggsurv
+
+
+```
+
+
+
+```{r}
+##Correlation
+
+two_year_15
+two_year_18
+
+
+colnames(two_year_15)[4]<-paste("two_year")
+colnames(two_year_15)[5]<-paste("five_year")
+colnames(two_year_15)[6]<-paste("ten_year")
+
+cor.test(x=(1-two_year_15$two_year), y=(1-two_year_15$five_year))
+cor.test(x=two_year_15$two_year, y=two_year_15$five_year)
+
+library(ggpubr)
+ggscatter(two_year_15, x="two_year", y="five_year", add = "reg.line", conf.int = TRUE,  cor.coef = TRUE,
+          xlab = "2 years RFS", ylab = "5 years RFS")
+
+ggscatter(two_year_15, x="two_year", y="ten_year", add = "reg.line", conf.int = TRUE,  cor.coef = TRUE,
+          xlab = "2 years RFS", ylab = "5 years RFS")
+
+
+
+
+colnames(two_year_18)[4]<-paste("two_year")
+colnames(two_year_18)[5]<-paste("five_year")
+colnames(two_year_18)[6]<-paste("ten_year")
+
+
+ggscatter(two_year_18, x="two_year", y="five_year", add = "reg.line", conf.int = TRUE,  cor.coef = TRUE,
+          xlab = "2 years RFS", ylab = "5 years RFS")
+
+
+combi<-cbind(two_year_15,two_year_18)
+combi
+colnames(combi)[10]<-paste("2Y")
+colnames(combi)[11]<-paste("5Y")
+colnames(combi)[12]<-paste("10Y")
+combi<-combi[,-(2:3)]
+ggscatter(combi, x="two_year", y="2Y", add = "reg.line", conf.int = TRUE,  cor.coef = TRUE,
+          xlab = "2 years RFS", ylab = "5 years RFS")
+
+
+
+ggscatter(combi, x="five_year", y="5Y", add = "reg.line", conf.int = TRUE,  cor.coef = TRUE,
+          xlab = "2 years RFS", ylab = "5 years RFS")
+
+
+
+ggscatter(combi, x="ten_year", y="10Y", add = "reg.line", conf.int = TRUE,  cor.coef = TRUE, add.params = list(color = "blue",
+                            fill = "black"),size=4,conf.int.level = 0.95,
+          xlab = "2 years RFS", ylab = "5 years RFS")
+
+```
+```{r}
+##Correlation II
+
+
+combi_x<-cbind(w15,w18)
+combi_x
+colnames(combi_x)[2]<-paste("V2")
+combi_x<-combi_x[,-(2:7)]
+combi_x
+ggscatter(combi_x, x="V1",y="V2",add = "reg.line", conf.int = TRUE,  cor.coef = TRUE)
+```
+
+
