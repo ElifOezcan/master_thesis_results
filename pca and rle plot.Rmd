@@ -1,0 +1,259 @@
+---
+title: "PCA_and RLE_plot"
+output: html_document
+---
+
+
+```{r, fig.width=10, fig.height=8}
+##RAW DATA
+library(readr)
+raw<- read_delim("C:/Users/elif/Desktop/nanostring_Stage II_results/Nanostring Cartridge Results/Stage2, LMU, RAW data, Nanostring, whole cohort, 18.03.2022.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+
+library(readxl)
+cartridge_patient <- read_excel("C:/Users/elif/Desktop/nanostring_Stage II_results/cartridge&patient.xlsx")
+
+
+raw<-raw[,-(2:19)]
+raw<-raw[-1,]
+name<-raw$`Probe Name`
+raw<-raw[,-1]
+row.names(raw)<-name
+
+raw<-cbind(cartridge_patient$`Patient no`,t(raw))
+raw<-as.data.frame(raw)
+patients<-raw$V1
+raw<-raw[,-1]
+row.names(raw)<-patients
+raw_data<-t(raw[,1:61])
+raw_data<-as.data.frame(raw_data)
+
+raw_data<-sapply(raw_data, as.numeric)
+
+colnames(raw_data)[208]<-paste("E11494/00.2")
+
+colnames(raw_data)[209]<-paste("E26554/03.2")
+
+colnames(raw_data)[210]<-paste("E11955/98.2")
+
+library(EDASeq)
+set<-newSeqExpressionSet(data.matrix(raw_data))
+
+
+par(mar=c(8,8,4,4))
+plotPCA(set, xaxt="n",yaxt="n",cex.lab=2,font=2,font.lab=2, line=5)
+axis(2,las=2, cex.axis=1.5, font=2)
+axis(1,cex.axis=1.5,las=1, font=2)
+title( main="Unnormalized PCA Plot",cex.main=2.5, line=2)
+
+```
+
+
+```{r,fig.height=6,fig.width=8}
+library(dplyr)
+library(ggplot2)
+
+
+##Raw_data
+pca_raw<-prcomp(t(log10(1+raw_data)))
+
+
+var_explained <- pca_raw$sdev^2/sum(pca_raw$sdev^2)
+var_explained[1:5]
+
+par(mar=c(8,8,6,6))
+pca_raw$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=5) +
+  theme_bw(base_size=15) + 
+  labs(x=paste0("PC1: ",round(var_explained[1]*100,1),"%"),
+       y=paste0("PC2: ",round(var_explained[2]*100,1),"%")) +
+  theme(axis.text = element_text( colour="black",size=18), axis.title.x = element_text(face="bold",size=20, margin = margin(t=20)),axis.title.y = element_text(face="bold",size=20, margin = margin(r=20)))
+```
+
+
+```{r,fig.width=20, fig.height=15}
+##RLE plot
+
+colors<-c("darkgreen","darkmagenta","darkolivegreen1","deepskyblue3","firebrick1","darkslateblue","gold4","lawngreen","lightblue","indianred4","ivory4","khaki","lightpink4","lightskyblue4","midnightblue","orange4","salmon","red")
+colors
+
+x<-as.factor(c(rep(c("C1","C2","C3","C4","C5","C6","C7","C8","C10","C9","C11",
+                   "C12","C13","C14","C15","C16","C17"), each=12),rep(c("C18"), each=6)))
+
+
+x<-data.frame(x)
+
+row.names(x)<-colnames(raw_data)
+
+##RLE plot from raw data
+par(mar=c(12,10,5,5))
+plotRLE(set,outline=FALSE, ylim=c(-3,3), las=2, col=colors[factor(x$x)], style="full", main="",whisklwd = 1.5,frame=FALSE,whisklty = 3,boxlwd=1.5,stapllwd =1, do.conf=TRUE,yaxt="n",xaxt="n")
+axis(2,cex.axis=3.5,las=1)
+abline(h=0, col="black",lwd=8,lty=2)
+mtext("Samples", 1, line = 5, cex = 3)
+mtext("Relative log expression", 2, line = 5, cex = 3)
+title( main="Unnormalized RLE Plot",cex.main=4, line=2)
+
+
+
+
+```
+
+```{r,fig.width=10}
+##NORMALIZED WITH OUTLIERS
+norm<- read_delim("C:/Users/elif/Desktop/nanostring_Stage II_results/Nanostring Cartridge Results/Stage2, LMU, normalized data, Nanostring, whole cohort, 18.03.2022.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+
+norm<-norm[,-(2:19)]
+norm<-norm[-1,]
+name<-norm$`Probe Name`
+norm<-norm[,-1]
+row.names(norm)<-name
+
+norm<-cbind(cartridge_patient$`Patient no`,t(norm))
+norm<-as.data.frame(norm)
+patients<-norm$V1
+norm<-norm[,-1]
+row.names(norm)<-patients
+norm_data<-t(norm)
+norm_data<-as.data.frame(norm_data)
+
+
+norm_data<-sapply(norm_data, as.numeric)
+
+colnames(norm_data)[208]<-paste("E11494/00.2")
+
+colnames(norm_data)[209]<-paste("E26554/03.2")
+
+colnames(norm_data)[210]<-paste("E11955/98.2")
+
+
+set2<-newSeqExpressionSet(data.matrix(norm_data[1:61,]))
+
+
+
+par(mar=c(8,8,4,4))
+plotPCA(set2, xaxt="n",yaxt="n",cex.lab=2,font=2,font.lab=2, line=5)
+axis(2,las=2, cex.axis=1.5, font=2)
+axis(1,cex.axis=1.5,las=1, font=2)
+title( main="Normalized PCA Plot",cex.main=2.5, line=2)
+
+```
+
+```{r,fig.height=6,fig.width=8}
+
+##Normalized data
+pca_norm<-prcomp(t(log10(1+norm_data)))
+
+
+var_explained <- pca_norm$sdev^2/sum(pca_norm$sdev^2)
+var_explained[1:5]
+
+par(mar=c(8,8,6,6))
+pca_norm$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=5) +
+  theme_bw(base_size=15) + 
+  labs(x=paste0("PC1: ",round(var_explained[1]*100,1),"%"),
+       y=paste0("PC2: ",round(var_explained[2]*100,1),"%")) +
+  theme(axis.text = element_text( colour="black",size=18), axis.title.x = element_text(face="bold",size=20, margin = margin(t=20)),axis.title.y = element_text(face="bold",size=20, margin = margin(r=20)))+scale_y_discrete(limits=c(-2,-1,0,1,2))
+```
+
+```{r,fig.width=20,fig.height=15}
+
+
+##RLE plot from normalized data
+par(mar=c(12,10,5,5))
+plotRLE(set2,outline=FALSE, ylim=c(-3,3), las=2, col=colors[factor(x$x)], style="full", main="",whisklwd = 1.5,frame=FALSE,whisklty = 3,boxlwd=1.5,stapllwd =1, do.conf=TRUE,yaxt="n",xaxt="n")
+axis(2,cex.axis=3.5,las=1)
+abline(h=0, col="black",lwd=8,lty=2)
+mtext("Samples", 1, line = 5, cex = 3)
+mtext("Relative log expression", 2, line = 5, cex = 3)
+title( main="Normalized RLE Plot",cex.main=4, line=2)
+
+```
+
+
+
+```{r, fig.width=10}
+##NORMALIZED WITHOUT OUTLIERS
+library(readxl)
+flags <- read_excel("C:/Users/elif/Desktop/nanostring_Stage II_results/normalized_expression_counts_wo_flags.xlsx")
+flags<-flags[,-(207:224)]
+flags<-flags[-(1:2),]
+names<-flags$`Probe Name`
+flags<-flags[,-1]
+row.names(flags)<-names
+
+
+
+flag<-cbind(cartridge_patient$`Patient no`,t(flags))
+flag<-as.data.frame(flag)
+patients<-flag$V1
+flag<-flag[,-1]
+row.names(flag)<-patients
+flag<-t(flag[,1:61])
+flag<-as.data.frame(flag)
+
+
+flag<-sapply(flag, as.numeric)
+set3<-newSeqExpressionSet(data.matrix(flag))
+plotPCA(set3, main="PCA Plot without Outliers")
+
+
+
+par(mar=c(8,8,4,4))
+plotPCA(set3, xaxt="n",yaxt="n",cex.lab=2,font=2,font.lab=2, line=5)
+axis(2,las=2, cex.axis=1.5, font=2)
+axis(1,cex.axis=1.5,las=1, font=2)
+title( main="PCA Plot without Outliers",cex.main=2.5, line=2)
+
+
+```
+
+
+
+```{r,fig.height=6,fig.width=8}
+##Normalized without outliers
+pca_flag<-prcomp(t(log10(1+flag)))
+
+
+var_explained <- pca_flag$sdev^2/sum(pca_flag$sdev^2)
+var_explained[1:5]
+
+par(mar=c(8,8,6,6))
+pca_flag$x %>% 
+  as.data.frame %>%
+  ggplot(aes(x=PC1,y=PC2)) + geom_point(size=5) +
+  theme_bw(base_size=15) + 
+  labs(x=paste0("PC1: ",round(var_explained[1]*100,1),"%"),
+       y=paste0("PC2: ",round(var_explained[2]*100,1),"%")) +
+  theme(axis.text = element_text( colour="black", size = 18), axis.title.x = element_text(face="bold",size=20, margin = margin(t=20)),axis.title.y = element_text(face="bold", size=20,margin = margin(r=20)))+scale_y_discrete(limits=c(-2,-1,0,1,2))+scale_x_discrete(limits=c(-2,-1,0,1,2))
+```
+
+
+```{r,fig.width=20,fig.height=15}
+
+
+
+##RLE plot from normalized data wo outliers
+par(mar=c(12,10,5,5))
+plotRLE(set3,outline=FALSE, ylim=c(-3,3), las=2, col=colors[factor(x$x)], style="full", main="",whisklwd = 1.5,frame=FALSE,whisklty = 3,boxlwd=1.5,stapllwd =1, do.conf=TRUE,yaxt="n",xaxt="n")
+axis(2,cex.axis=3.5,las=1)
+abline(h=0, col="black",lwd=8,lty=2)
+mtext("Samples", 1, line = 5, cex = 3)
+mtext("Relative log expression", 2, line = 5, cex = 3)
+title( main="Normalized RLE Plot wo Outliers",cex.main=4, line=2)
+
+
+
+```
+
+
+
+
