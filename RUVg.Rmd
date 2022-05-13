@@ -1,0 +1,127 @@
+---
+title: "RUVSeq"
+output: html_document
+---
+
+##https://www.bioconductor.org/packages/release/bioc/vignettes/RUVSeq/inst/doc/RUVSeq.pdf##
+
+```{r}
+library(RUVSeq)
+library(readr)
+
+data <- read_delim("C:/Users/elif/Desktop/Nanostring Cartridge Results/C1-C13_raw_w_flag.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+head(data)
+data<-data[,-(2:7)]
+data<-data[-1,]
+gene_name<-data$`Probe Name`
+data<-data[,-1]
+row.names(data)<-gene_name
+
+
+house_keeping_genes<-data[62:67,]
+row.names(house_keeping_genes)<-gene_name[62:67]
+
+
+negative_controls<-data[68:75,]
+row.names(negative_controls)<-gene_name[68:75]
+
+
+positive_controls<-data[76:81,]
+row.names(positive_controls)<-gene_name[76:81]
+
+
+pos_spike<-rownames(data)[grep(c("POS"), rownames(data))]
+neg_spike<-rownames(data)[grep(c("NEG"), rownames(data))]
+
+genes<-gene_name[1:61]
+
+
+x<-as.factor(rep(c("C1","C2","C3","C4","C5","C6","C7","C8","C10","C9","C11",
+                   "C12","C13"), each=12))
+
+
+x<-data.frame(x)
+x
+row.names(x)<-colnames(data)
+
+set<-newSeqExpressionSet(data.matrix(data), phenoData = (x))
+set
+
+
+dim(data)
+dim(x)
+
+library(RColorBrewer)
+colors<-brewer.pal(13, "Set1")
+plotRLE(set, outline=FALSE, ylim=c(-4,4), col=colors)
+plotPCA(set, col=colors, cex=1.2)
+
+## normalizing data using upper quartile normalization from edaseq
+
+set_normalized<-betweenLaneNormalization(set, which = "upper")
+plotRLE(set_normalized, outline=FALSE, col=colors, ylim=c(-4,4))
+plotPCA(set_normalized, cex=1.2, col=colors)
+
+
+
+
+## unwanted variation still exists between samples, to get rid of it we need to set a negative control gene group 
+
+set1<-RUVg(set_normalized, house_keep_spike, k=5)
+pData(set1)
+plotRLE(set1, outline=FALSE, ylim=c(-3,3),col=colors)
+house_keeping_genes
+
+## Differential Expression
+
+design<- model.matrix(~x + W_1, data=pData(set1))
+y<- DGEList(counts = counts(set1), group = t(x))
+y<-calcNormFactors(y, method = "upperquartile")
+y<-estimateGLMCommonDisp(y, design)
+y<-estimateGLMTagwiseDisp(y, design)
+
+
+fit<-glmFit(y, design)
+lrt<-glmLRT(fit, coef = 2)
+
+topTags(lrt)
+
+```
+```{r}
+
+data_2<-read_delim("C:/Users/elif/Desktop/raw_data.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+
+data_2<-data_2[,-(2:7)]
+data_2<-data_2[-1,]
+gene_name<-data_2$`Probe Name`
+data_2<-data_2[,-1]
+row.names(data_2)<-gene_name
+
+
+
+x_2<-as.factor(rep(c("C1","C2","C3","C4","C5"), each=12))
+
+
+x_2<-data.frame(x_2)
+x
+row.names(x_2)<-colnames(data_2)
+
+set_2<-newSeqExpressionSet(data.matrix(data_2), phenoData = (x_2))
+set_2
+
+
+library(RColorBrewer)
+colors<-brewer.pal(13, "Set1")
+plotRLE(set, outline=FALSE, ylim=c(-4,4), col=colors)
+plotPCA(set, col=colors, cex=1.2)
+
+set$x
+```
+
+
