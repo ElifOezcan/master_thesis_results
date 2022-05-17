@@ -37,11 +37,11 @@ colnames(cohort)[3]<-paste("RFS")
 colnames(cohort)[4]<-paste("RFS01")
 
 #multivariable COX regression
-#genes <- c("Age", "Sex", "GRAD", "pT", "BACE1", "CD40LG", "CD2BP2", "TRIP10", "ZNF785", "SUM01_low", "combi18_1", "combi15_14")
+
 genes <- c("Age", "Sex", "Grade", "T", "combi18_score")
 cutoff <- surv_cutpoint(cohort, time = "RFS", event = "RFS01", variables = genes, minprop = 0.1, progressbar = TRUE)
 surv_cat <- surv_categorize(cutoff)
-#res.cox <- coxph(Surv(RFS, RFS01) ~ BACE1 + CD40LG + CD2BP2 + TRIP10 + ZNF785 + SUM01_low + combi18_1 + combi15_14 + Age + Sex + GRAD + pT, data = surv_cat)
+
 res.cox <- coxph(Surv(RFS, RFS01) ~ combi18_score + Age + Sex + Grade + T, data = surv_cat)
 
 summary(res.cox)
@@ -51,7 +51,7 @@ summary(res.cox)
 genes <- c("Age", "Sex", "Grade", "T", "combi15_score")
 cutoff <- surv_cutpoint(cohort, time = "RFS", event = "RFS01", variables = genes, minprop = 0.1, progressbar = TRUE)
 surv_cat <- surv_categorize(cutoff)
-#res.cox <- coxph(Surv(RFS, RFS01) ~ BACE1 + CD40LG + CD2BP2 + TRIP10 + ZNF785 + SUM01_low + combi18_1 + combi15_14 + Age + Sex + GRAD + pT, data = surv_cat)
+
 res.cox <- coxph(Surv(RFS, RFS01) ~ combi15_score + Age + Sex + Grade + T ,data = surv_cat)
 
 res.cox
